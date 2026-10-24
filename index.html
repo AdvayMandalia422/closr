@@ -6,7 +6,7 @@
 <meta name="description" content="A daily NFL and NBA game: name the player closest to the rank. Closest wins.">
 <meta name="theme-color" content="#06090f">
 <title>closr.</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2306090f'/%3E%3Ctext x='32' y='47' font-family='Georgia,serif' font-weight='900' font-size='38' text-anchor='middle' fill='%23ffd23f'%3E%2332%3C/text%3E%3C/svg%3E">
+<link rel="icon" id="favicon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2306090f'/%3E%3Cpath d='M38.5 21 A14 14 0 1 0 38.5 43' fill='none' stroke='%23f3f5f9' stroke-width='9.5' stroke-linecap='round'/%3E%3Ccircle cx='49' cy='44.5' r='7.5' fill='%23ffd23f'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=Graduate&family=Instrument+Sans:wght@400;500;600;700&display=swap">
@@ -363,9 +363,17 @@ button, input { font: inherit; color: inherit; }
     $('#other').textContent = sport === 'nfl' ? 'Play NBA' : 'Play NFL';
     $('#next-league').textContent = sport.toUpperCase();
     $('#s-league').textContent = `${sport.toUpperCase()} · No. ${day}`;
+    setIcon();
     resetInput();
     render();
     stamp();
+  }
+
+  // Tab icon: the wordmark's "c." with the dot in the current league's color.
+  function setIcon() {
+    const dot = sport === 'nba' ? '%23ff7a1a' : '%23ffd23f';
+    const el = $('#favicon');
+    if (el) el.setAttribute('href', el.getAttribute('href').replace(/fill='%23(ffd23f|ff7a1a)'/, `fill='${dot}'`));
   }
 
   function stamp() {
