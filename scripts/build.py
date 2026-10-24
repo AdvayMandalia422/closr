@@ -472,9 +472,14 @@ def main():
 
     static = json.loads(STATIC_FILE.read_text(encoding='utf-8')) if STATIC_FILE.exists() else None
     if args.rebuild_static or not static or (today - dt.date.fromisoformat(static['built'])).days >= STATIC_MAX_AGE_DAYS:
-        static = build_static(today)
-        STATIC_FILE.write_text(json.dumps(static, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-        log('static data rebuilt')
+        try:
+            static = build_static(today)
+            STATIC_FILE.write_text(json.dumps(static, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+            log('static data rebuilt')
+        except Exception as e:  # a blocked or failed download shouldn't stop today's rounds
+            if not static:
+                raise
+            log('static rebuild failed, keeping existing data:', e)
     schedule = json.loads(SCHEDULE_FILE.read_text(encoding='utf-8')) if SCHEDULE_FILE.exists() else {}
 
     dates = [today + dt.timedelta(days=d) for d in range(-1, HORIZON_DAYS + 1)]
