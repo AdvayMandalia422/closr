@@ -1,0 +1,58 @@
+name: Refresh closr rounds
+
+on:
+  schedule:
+    - cron: '17 9 * * *' # 09:17 UTC daily, after the previous night's US games are final
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build rounds from current-season stats
+        run: python scripts/build.py
+
+      - name: Commit the updated rounds
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/schedule.json data/static.json index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Refresh rounds for $(date -u +%F)"
+            git pull --rebase
+            git push
+          fi
+
+      - name: Prepare site
+        run: mkdir -p _site && cp index.html _site/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
