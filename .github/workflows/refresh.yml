@@ -33,7 +33,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/schedule.json data/static.json index.html
+          git add data/schedule.json data/static.json index.html archive
           if ! git diff --cached --quiet; then
             git commit -m "Refresh rounds for $(date -u +%F)"
             git pull --rebase
@@ -41,7 +41,7 @@ jobs:
           fi
 
       - name: Prepare site
-        run: mkdir -p _site && cp index.html _site/
+        run: mkdir -p _site && cp -R index.html archive _site/
 
       - uses: actions/upload-pages-artifact@v3
         with:

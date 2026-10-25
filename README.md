@@ -7,12 +7,12 @@ Each round shows a stat and a target rank. You name the player you think sits cl
 | Spots off | Points |
 |---|---|
 | 0 (dead on) | 100 |
-| 2 | 75 |
-| 5 | 49 |
-| 10 | 24 |
-| 20 | 6 |
+| 2 | 85 |
+| 5 | 66 |
+| 10 | 43 |
+| 20 | 19 |
 
-Points are `100 × e^(−spots/7)`, rounded. Tied players share a rank, and landing anywhere inside a tie that covers the target counts as dead on.
+Points are `100 × e^(−spots/12)`, rounded. Tied players share a rank, and landing anywhere inside a tie that covers the target counts as dead on.
 
 Each league gets six rounds a day, for 600 points max. The rounds mix:
 
@@ -32,7 +32,9 @@ A GitHub Action ([`.github/workflows/refresh.yml`](.github/workflows/refresh.yml
    - NFL player stats and game results from [nflverse](https://github.com/nflverse)
    - NBA totals and standings from [Basketball Reference](https://www.basketball-reference.com)
 2. Schedules six rounds per league for yesterday through two days ahead in [`data/schedule.json`](data/schedule.json). Days that already have rounds are never changed, so everyone gets the same set all day in every time zone.
-3. Embeds yesterday's, today's and tomorrow's rounds into `index.html`, commits, and deploys to GitHub Pages.
+3. Embeds yesterday's, today's and tomorrow's rounds into `index.html`.
+4. Saves each finished day to [`archive/`](archive/) (one JSON file per date, plus `archive/index.json`). The in-game Archive lists these so people can play past sets. Archive plays don't change stats or streaks.
+5. Commits and deploys to GitHub Pages.
 
 [`data/static.json`](data/static.json) holds the past-season lists, NBA all-time lists and NFL career totals. It's rebuilt automatically every 30 days.
 
@@ -60,6 +62,7 @@ Other options:
 ```bash
 python3 scripts/build.py --today 2026-11-15     # build as if it were another day
 python3 scripts/build.py --rebuild-static       # refetch past seasons and career lists now
+python3 scripts/build.py --backfill 7           # fill in missing rounds for the past 7 days
 ```
 
 Downloads are cached in `data/raw/` (not committed).

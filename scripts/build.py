@@ -7,10 +7,13 @@ rank; players name someone they think sits closest to that rank.
   python scripts/build.py                     # daily refresh (what the GitHub Action runs)
   python scripts/build.py --rebuild-static    # refetch past seasons and career lists now
   python scripts/build.py --today 2026-11-01  # build as if it were another day (testing)
+  python scripts/build.py --backfill 7        # also fill in missing rounds for the past 7 days
 
 data/static.json holds past-season lists, NBA all-time lists and NFL career totals
 from 1999 up to the last completed season. It's rebuilt automatically every 30 days.
 data/schedule.json holds the rounds for each day. Days already scheduled never change.
+archive/<date>.json keeps every finished day's rounds for the in-game archive, listed in
+archive/index.json. Archive files are kept after the schedule drops old days.
 """
 from __future__ import annotations
 
@@ -35,6 +38,7 @@ RAW = DATA_DIR / 'raw'
 INDEX = ROOT / 'index.html'
 STATIC_FILE = DATA_DIR / 'static.json'
 SCHEDULE_FILE = DATA_DIR / 'schedule.json'
+ARCHIVE_DIR = ROOT / 'archive'
 START, END = '/*DATA:START*/', '/*DATA:END*/'
 
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
@@ -463,10 +467,30 @@ def embed(schedule, today):
     INDEX.write_text(page[:a] + js + page[b:], encoding='utf-8')
 
 
+def write_archive(schedule, today):
+    """Save each finished (or current) day's rounds and rebuild the archive index.
+
+    The page only lists dates before the player's local today, so writing today's
+    file lets players ahead of UTC see it as soon as their day has rolled over.
+    """
+    ARCHIVE_DIR.mkdir(exist_ok=True)
+    for d, rounds in schedule.items():
+        path = ARCHIVE_DIR / f'{d}.json'
+        if d <= today.isoformat() and all(lg in rounds for lg in LEAGUES) and not path.exists():
+            path.write_text(json.dumps(rounds, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    index = []
+    for path in sorted(ARCHIVE_DIR.glob('????-??-??.json'), reverse=True):
+        rounds = json.loads(path.read_text(encoding='utf-8'))
+        index.append({'date': path.stem, **{lg: len(rounds[lg]) for lg in LEAGUES}})  # round counts only, no spoilers
+    (ARCHIVE_DIR / 'index.json').write_text(json.dumps(index, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    return len(index)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--rebuild-static', action='store_true')
     ap.add_argument('--today', type=dt.date.fromisoformat)
+    ap.add_argument('--backfill', type=int, default=1, metavar='DAYS', help='schedule missing days this far back (default 1)')
     args = ap.parse_args()
     today = args.today or dt.datetime.now(dt.timezone.utc).date()
 
@@ -482,7 +506,7 @@ def main():
             log('static rebuild failed, keeping existing data:', e)
     schedule = json.loads(SCHEDULE_FILE.read_text(encoding='utf-8')) if SCHEDULE_FILE.exists() else {}
 
-    dates = [today + dt.timedelta(days=d) for d in range(-1, HORIZON_DAYS + 1)]
+    dates = [today + dt.timedelta(days=d) for d in range(-max(1, args.backfill), HORIZON_DAYS + 1)]
     missing = [(d, lg) for d in dates for lg in LEAGUES if lg not in schedule.get(d.isoformat(), {})]
     if missing:
         scopes = scopes_for(today, static)
@@ -493,7 +517,7 @@ def main():
     schedule = {d: v for d, v in sorted(schedule.items()) if d >= cutoff}
     SCHEDULE_FILE.write_text(json.dumps(schedule, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     embed(schedule, today)
-    log('index.html updated for', today)
+    log('index.html updated for', today, '·', write_archive(schedule, today), 'days in archive')
 
 
 if __name__ == '__main__':
