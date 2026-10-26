@@ -41,7 +41,7 @@ jobs:
           fi
 
       - name: Prepare site
-        run: mkdir -p _site && cp -R index.html archive _site/
+        run: mkdir -p _site && cp -R index.html stats.html archive _site/
 
       - uses: actions/upload-pages-artifact@v3
         with:

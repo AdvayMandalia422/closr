@@ -415,7 +415,7 @@ body[data-sport="nba"] .court-bg { display: block; }
   </main>
 
   <footer class="foot">
-    <p class="fine">Regular-season stats from nflverse and Basketball Reference<span id="updated"></span>. Not affiliated with the NFL or NBA.</p>
+    <p class="fine">Regular-season stats from nflverse and Basketball Reference<span id="updated"></span>. Anonymous daily play counts only, no cookies or personal data. Not affiliated with the NFL or NBA.</p>
   </footer>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -657,9 +657,20 @@ body[data-sport="nba"] .court-bg { display: block; }
     });
   }
 
+  // Anonymous daily counts on a free public counter (abacus.jasoncameron.dev): no cookies, no personal data.
+  // Each device counts once per event per day. Local previews count into a separate dev namespace.
+  const COUNTER = 'https://abacus.jasoncameron.dev/hit/' + (/\.github\.io$/.test(location.hostname) ? 'closr-advaymandalia422' : 'closr-dev-advay');
+  function count(name) {
+    const k = `closr:v1:counted:${name}`;
+    if (store.get(k, false)) return;
+    store.set(k, true);
+    try { fetch(`${COUNTER}/${name}`, { mode: 'cors', keepalive: true }).catch(() => {}); } catch (e) {}
+  }
+
   function stats() { return store.get(statsKey(), { played: 0, total: 0, best: 0, streak: 0, last: 0 }); }
   function record() {
     if (game.recorded || mode !== 'daily') return;
+    count(`${pkey}.${sport}.done`);
     const s = stats(), tot = total();
     s.played++; s.total += tot; s.best = Math.max(s.best, tot);
     s.streak = s.last === day - 1 ? s.streak + 1 : s.last === day ? s.streak : 1;
@@ -743,6 +754,10 @@ body[data-sport="nba"] .court-bg { display: block; }
     e.preventDefault();
     if (chosen === null || game.at >= rounds.length || game.picks.length > game.at) return;
     const r = rounds[game.at], d = offBy(prep[game.at], chosen, r.target);
+    if (!game.picks.length) {
+      if (mode === 'daily') { count(`${pkey}.player`); count(`${pkey}.${sport}.play`); }
+      else count(`${dateKey()}.archive`);
+    }
     game.picks.push({ i: chosen, d, pts: points(d) });
     save();
     render();
@@ -887,6 +902,7 @@ body[data-sport="nba"] .court-bg { display: block; }
     $('#updated').textContent = ', updated ' + new Date(y, mo - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
   buildScale();
+  count(`${dateKey()}.visit`);
   buildField();
   buildCourt();
   sport = store.get('closr:v1:sport', 'nfl') === 'nba' ? 'nba' : 'nfl';

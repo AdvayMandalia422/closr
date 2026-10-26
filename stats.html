@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>closr. stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap">
+<style>
+/* Daily player counts for closr., read from the public counter the game writes to. */
+:root {
+  --bg: #f2f2f0; --surface: #fff; --ink: #121212; --muted: #62625f; --line: #e3e3df; --chip: #ececea; --accent: #c4452a;
+  --display: "Nunito", ui-rounded, system-ui, sans-serif; --body: "Nunito Sans", system-ui, -apple-system, sans-serif;
+  --shadow: 0 1px 2px rgba(18, 18, 18, .05), 0 6px 20px -12px rgba(18, 18, 18, .18);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.45; }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); flex-wrap: wrap; }
+h1 { margin: 0; font-family: var(--display); font-weight: 900; font-size: 30px; letter-spacing: -.02em; }
+h1 span { color: var(--accent); }
+h1 small { font-size: 18px; color: var(--muted); font-weight: 800; margin-left: 6px; }
+header a { color: var(--ink); font-weight: 700; }
+.card { background: var(--surface); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border-radius: 18px; padding: 14px 16px; box-shadow: var(--shadow); }
+.tile b { display: block; font-family: var(--display); font-weight: 900; font-size: 36px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h2 { margin: 0 0 12px; font-family: var(--display); font-weight: 900; font-size: 18px; }
+.chart { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 6px; align-items: end; height: 180px; }
+.col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; min-width: 0; }
+.col .v { font-family: var(--display); font-weight: 900; font-size: 13px; font-variant-numeric: tabular-nums; }
+.col .bar { width: 100%; max-width: 40px; min-height: 3px; border-radius: 8px 8px 3px 3px; background: var(--accent); }
+.col .bar.zero { background: var(--line); }
+.col .d { font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+td.strong { font-weight: 800; }
+.note { margin: 0; font-size: 13px; color: var(--muted); }
+#status { min-height: 1.4em; }
+@media (max-width: 560px) { .chart .d { font-size: 9.5px; } .chart .v { font-size: 11px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>closr<span>.</span> <small>stats</small></h1>
+    <a href="./">Play closr</a>
+  </header>
+  <div class="tiles">
+    <div class="tile"><b id="t-today">–</b><span>Players today</span></div>
+    <div class="tile"><b id="t-yday">–</b><span>Players yesterday</span></div>
+    <div class="tile"><b id="t-avg">–</b><span>7-day average</span></div>
+    <div class="tile"><b id="t-total">–</b><span>Plays, 14 days</span></div>
+  </div>
+  <section class="card">
+    <h2>Daily players</h2>
+    <div class="chart" id="chart"></div>
+  </section>
+  <section class="card">
+    <h2>By day</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Visitors</th><th>Players</th><th>NFL started</th><th>NFL finished</th><th>NBA started</th><th>NBA finished</th><th>Archive plays</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+  <p class="note" id="status">Loading counts…</p>
+  <p class="note">Players are devices that locked in at least one daily guess that day, counted once per device. Days follow each player’s own time zone. Counts are anonymous and stored on a free public counter, so treat them as a guide rather than exact figures.</p>
+</div>
+<script>
+(function () {
+  const ns = new URLSearchParams(location.search).get('ns') === 'dev' ? 'closr-dev-advay' : 'closr-advaymandalia422';
+  const KEYS = ['visit', 'player', 'nfl.play', 'nfl.done', 'nba.play', 'nba.done', 'archive'];
+  const DAYS = 14;
+  const $ = (s) => document.querySelector(s);
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const today = new Date();
+  const dates = Array.from({ length: DAYS }, (_, i) => iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - (DAYS - 1 - i))));
+  const label = (d, opts) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', opts); };
+
+  // The counter allows 30 requests per 10 seconds, so lookups are paced (newest day first)
+  // and days older than two days are remembered in this browser once loaded.
+  const GAP = 420;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let failed = 0;
+  async function get(key) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(`https://abacus.jasoncameron.dev/get/${ns}/${key}`);
+        if (res.status === 404) return 0;
+        if (res.status === 429) { await sleep(10500); continue; }
+        if (!res.ok) throw new Error(res.status);
+        return (await res.json()).value || 0;
+      } catch (e) { await sleep(1000); }
+    }
+    failed++;
+    return null;
+  }
+  const cacheKey = (d) => `closr-stats:${ns}:${d}`;
+  const settled = (d) => d < dates[DAYS - 2];
+
+  async function load() {
+    const data = {};
+    const todo = [];
+    dates.forEach((d) => {
+      let cached = null;
+      try { cached = settled(d) ? JSON.parse(localStorage.getItem(cacheKey(d))) : null; } catch (e) {}
+      data[d] = cached || {};
+      if (!cached) todo.push(d);
+    });
+    render(data);
+    const total = todo.length * KEYS.length;
+    let done = 0;
+    // Start one lookup every GAP ms without waiting for answers, so slow responses don't slow the whole load.
+    const dayJobs = [];
+    for (const d of todo.reverse()) {
+      const keyJobs = [];
+      for (const k of KEYS) {
+        keyJobs.push(get(`${d}.${k}`).then((v) => {
+          data[d][k] = v || 0;
+          $('#status').textContent = `Loading counts… ${Math.round(++done / total * 100)}%`;
+          return v !== null;
+        }));
+        await sleep(GAP);
+      }
+      dayJobs.push(Promise.all(keyJobs).then((ok) => {
+        if (ok.every(Boolean) && settled(d)) { try { localStorage.setItem(cacheKey(d), JSON.stringify(data[d])); } catch (e) {} }
+        render(data);
+      }));
+    }
+    await Promise.all(dayJobs);
+    $('#status').textContent = failed ? `Some counts couldn’t be loaded (${failed}). Refresh to try again.` : `Updated ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}${ns.includes('dev') ? ' · showing local test counts' : ''}.`;
+  }
+
+  const val = (r, k) => (r && r[k]) || 0;
+  function render(data) {
+    const players = dates.map((d) => val(data[d], 'player'));
+    const last7 = players.slice(-7);
+    $('#t-today').textContent = players[players.length - 1];
+    $('#t-yday').textContent = players[players.length - 2];
+    $('#t-avg').textContent = (last7.reduce((a, b) => a + b, 0) / 7).toFixed(1);
+    $('#t-total').textContent = dates.reduce((a, d) => a + val(data[d], 'nfl.play') + val(data[d], 'nba.play') + val(data[d], 'archive'), 0);
+    const max = Math.max(1, ...players);
+    $('#chart').innerHTML = dates.map((d, i) =>
+      `<div class="col"><span class="v">${players[i]}</span><span class="bar${players[i] ? '' : ' zero'}" style="height:${Math.round(players[i] / max * 130)}px"></span>` +
+      `<span class="d">${label(d, { month: 'numeric', day: 'numeric' })}</span></div>`).join('');
+    $('#rows').innerHTML = dates.slice().reverse().map((d) => {
+      const r = data[d], c = (k) => (k in r ? r[k] : '·');
+      return `<tr><td>${label(d, { weekday: 'short', month: 'short', day: 'numeric' })}</td><td>${c('visit')}</td><td class="strong">${c('player')}</td>` +
+        `<td>${c('nfl.play')}</td><td>${c('nfl.done')}</td><td>${c('nba.play')}</td><td>${c('nba.done')}</td><td>${c('archive')}</td></tr>`;
+    }).join('');
+  }
+  load();
+})();
+</script>
+</body>
+</html>

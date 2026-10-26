@@ -75,6 +75,22 @@ Stats are defined in `NFL_STATS` and `NBA_STATS` in [`scripts/build.py`](scripts
 - **NFL career rounds:** use any stat that has a single `col`.
 - **NBA all-time rounds:** map to Basketball Reference leader pages through `NBA_CAREER`.
 
+## Player counts
+
+The game sends anonymous daily counts to [Abacus](https://abacus.jasoncameron.dev), a free public counter that needs no account. Counts are keyed by date (namespace `closr-advaymandalia422`):
+
+| Key | Counts devices that… |
+|---|---|
+| `<date>.visit` | opened the game that day |
+| `<date>.player` | locked in at least one daily guess |
+| `<date>.nfl.play` / `<date>.nba.play` | started that league's daily set |
+| `<date>.nfl.done` / `<date>.nba.done` | finished it |
+| `<date>.archive` | played an archive set |
+
+Each device counts once per key, using a flag in local storage. No cookies or personal data are sent. Local previews count into a separate `closr-dev-advay` namespace.
+
+[`stats.html`](stats.html) shows the last 14 days. Add `?ns=dev` to see local test counts.
+
 ## Notes
 
 - Basketball Reference limits automated requests. The daily run makes two requests spaced a few seconds apart; the monthly rebuild makes about a dozen. If they're blocked, current-season NBA rounds are skipped that day and the run log says why.
