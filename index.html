@@ -83,9 +83,10 @@ button, input { font: inherit; color: inherit; }
 
 /* Target card */
 .arena { background: var(--surface); border-radius: var(--card); box-shadow: var(--shadow); padding: 18px 20px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
-.arena-top { display: flex; align-items: center; gap: 8px; }
 .league { font-family: var(--display); font-weight: 900; font-size: 11px; letter-spacing: .06em; background: var(--ink); color: #fff; padding: 3px 8px; border-radius: 999px; }
-.scope { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.scope { margin: 8px 0 0; font-family: var(--display); font-weight: 900; font-size: 17px; line-height: 1.2; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 6px 16px; }
+.range { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--muted); background: var(--chip); border-radius: 999px; padding: 6px 16px; }
+.range b { color: var(--ink); font-weight: 900; }
 .arena h1 { margin: 8px 0 0; font-family: var(--display); font-weight: 900; font-size: clamp(24px, 6.6vw, 30px); line-height: 1.1; letter-spacing: -.01em; text-wrap: balance; }
 .target { margin: 4px 0 2px; font-family: var(--display); font-weight: 900; font-size: clamp(88px, 28vw, 128px); line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .target sup { font-size: .32em; letter-spacing: 0; vertical-align: .95em; margin-left: .04em; color: var(--accent); }
@@ -270,6 +271,8 @@ body[data-sport="nba"] .court-bg { display: block; }
   .arena { min-height: 400px; justify-content: center; padding: 32px; border-radius: 28px; }
   .target { font-size: 180px; }
   .arena h1 { font-size: 40px; }
+  .scope { font-size: 20px; padding: 7px 20px; }
+  .range { font-size: 16px; }
   .ask { font-size: 17px; max-width: 40ch; }
   .board { padding-top: 6px; }
   .pips { max-width: none; }
@@ -337,9 +340,11 @@ body[data-sport="nba"] .court-bg { display: block; }
 
     <div class="left" id="left">
     <section class="arena" id="card" aria-live="polite">
-      <div class="arena-top"><span class="league" id="league-chip">NFL</span><p class="scope" id="scope">2026 season so far</p></div>
+      <span class="league" id="league-chip">NFL</span>
       <h1 id="stat">Receiving yards</h1>
+      <p class="scope" id="scope">2026 season so far</p>
       <p class="target" id="target" aria-label="Target rank 32">32<sup>nd</sup></p>
+      <p class="range" id="range">Hint: #32 has <b>500–600 yds</b></p>
       <p class="ask" id="ask">Name the player closest to <b>32nd</b>. Closest wins.</p>
     </section>
     <p class="note" id="note">2026 regular season through Week 7.</p>
@@ -545,10 +550,23 @@ body[data-sport="nba"] .court-bg { display: block; }
     $('#target').setAttribute('aria-label', `Target rank ${r.target}`);
     $('#ask').innerHTML = `Name the player closest to <b>${ordinal(r.target)}</b>. Closest wins.`;
     $('#note').textContent = r.n;
+    $('#range').innerHTML = rangeHint(r, prep[game.at]);
     if (answered) renderReveal(r, prep[game.at], game.picks[game.at]);
   }
 
   function renderReveal(r, pr, pick) {
+  // "Hint: #24 has 400–500 yds": the target's value rounded into a band one step wide.
+  function rangeHint(r, pr) {
+    const i = r.pool.findIndex((_, k) => offBy(pr, k, r.target) === 0);
+    if (i < 0) return '';
+    const v = r.pool[i][2];
+    const mag = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1))));
+    let step = v / mag >= 2 ? mag : mag / 2;
+    if (v < 10) step = Math.max(step, 2);
+    const lo = Math.floor(v / step) * step, n = (x) => x.toLocaleString('en-US');
+    return `Hint: #${r.target} has <b>${n(lo)}–${n(lo + step)} ${esc(r.u)}</b>`;
+  }
+
     const t = r.target;
     const p = $('#r-pts');
     p.className = 'pts ' + band(pick.pts);
