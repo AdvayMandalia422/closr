@@ -404,7 +404,8 @@ body[data-sport="nba"] .court-bg { display: block; }
       </div>
       <ol class="recap" id="recap"></ol>
       <div class="actions">
-        <button type="button" class="btn" id="share">Copy my score</button>
+        <button type="button" class="btn" id="share-img">Share image</button>
+        <button type="button" class="btn ghost" id="share">Copy my score</button>
         <button type="button" class="btn ghost" id="other">Play NBA</button>
         <button type="button" class="btn ghost" id="to-archive">Play past sets</button>
       </div>
@@ -808,6 +809,68 @@ body[data-sport="nba"] .court-bg { display: block; }
     const url = /^https?:$/.test(location.protocol) && !/claude|localhost|127\.0\.0\.1/.test(location.host) ? '\n' + location.origin + location.pathname : '';
     return `closr. ${sport.toUpperCase()} ${gameLabel()} · ${total()}/${rounds.length * 100}\n${line}${url}`;
   }
+  // Story-sized score card (1080x1920). Shows stats, targets and points only, never player names.
+  const SITE = 'advaymandalia422.github.io/closr';
+  const BAND_COLORS = { b100: '#d6a000', b70: '#2f8f5b', b40: '#d9b923', b15: '#e27a34', b0: '#cfcfcb' };
+  function fitText(ctx, text, max) {
+    if (ctx.measureText(text).width <= max) return text;
+    while (text.length > 1 && ctx.measureText(text + '…').width > max) text = text.slice(0, -1);
+    return text + '…';
+  }
+  function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+  function drawShareCard() {
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1920;
+    const ctx = c.getContext('2d'), D = 'Nunito, system-ui, sans-serif';
+    ctx.fillStyle = '#f2f2f0'; ctx.fillRect(0, 0, 1080, 1920);
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#121212'; ctx.font = `900 132px ${D}`; ctx.textAlign = 'center';
+    const w = ctx.measureText('closr').width;
+    ctx.fillText('closr', 540 - 22, 230);
+    ctx.fillStyle = '#c4452a'; ctx.beginPath(); ctx.arc(540 - 22 + w / 2 + 30, 214, 17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#62625f'; ctx.font = `800 46px ${D}`;
+    ctx.fillText(`${sport.toUpperCase()} · ${gameLabel()}`, 540, 310);
+    ctx.fillStyle = '#ffffff'; roundRect(ctx, 70, 370, 940, 1250, 56);
+    ctx.fillStyle = '#121212'; ctx.font = `900 300px ${D}`;
+    const tot = String(total()), tw = ctx.measureText(tot).width;
+    ctx.font = `800 84px ${D}`; const mw = ctx.measureText(` / ${rounds.length * 100}`).width;
+    const x0 = 540 - (tw + mw) / 2;
+    ctx.textAlign = 'left'; ctx.font = `900 300px ${D}`; ctx.fillText(tot, x0, 690);
+    ctx.fillStyle = '#62625f'; ctx.font = `800 84px ${D}`; ctx.fillText(` / ${rounds.length * 100}`, x0 + tw, 690);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#121212'; ctx.font = `900 64px ${D}`;
+    ctx.fillText($('#s-title').textContent, 540, 790);
+    rounds.forEach((r, i) => {
+      const y = 860 + i * 122, pk = game.picks[i], b = band(pk.pts);
+      ctx.fillStyle = '#f2f2f0'; roundRect(ctx, 110, y, 860, 104, 30);
+      ctx.fillStyle = BAND_COLORS[b]; ctx.beginPath(); ctx.arc(160, y + 52, 18, 0, Math.PI * 2); ctx.fill();
+      ctx.textAlign = 'left'; ctx.fillStyle = '#121212'; ctx.font = `900 44px ${D}`;
+      ctx.fillText(fitText(ctx, `#${r.target} ${r.t}`, 600), 200, y + 50);
+      ctx.fillStyle = '#62625f'; ctx.font = `700 30px ${D}`;
+      ctx.fillText(fitText(ctx, r.s, 600), 200, y + 86);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#121212'; ctx.font = `900 54px ${D}`;
+      ctx.fillText(`+${pk.pts}`, 940, y + 70);
+    });
+    ctx.textAlign = 'center'; ctx.fillStyle = '#121212'; ctx.font = `900 58px ${D}`;
+    ctx.fillText('Name the player closest to the rank.', 540, 1730);
+    ctx.fillStyle = '#c4452a'; ctx.font = `800 44px ${D}`;
+    ctx.fillText(SITE, 540, 1800);
+    return c;
+  }
+  $('#share-img').addEventListener('click', async () => {
+    try { await Promise.all(['900 100px Nunito', '800 40px Nunito', '700 30px Nunito'].map((f) => document.fonts.load(f))); } catch (e) {}
+    const blob = await new Promise((res) => drawShareCard().toBlob(res, 'image/png'));
+    if (!blob) { toast('Couldn’t make the image. Try again.'); return; }
+    const file = new File([blob], `closr-${sport}-${pkey}.png`, { type: 'image/png' });
+    // Phones get the share sheet (straight to Instagram Stories); computers just save the image.
+    if (matchMedia('(pointer: coarse)').matches && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text: `closr. ${sport.toUpperCase()} ${gameLabel()} · ${total()}/${rounds.length * 100}` }); return; }
+      catch (e) { if (e.name === 'AbortError') return; }
+    }
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast('Image saved. Post it to your story.');
+  });
+
   $('#share').addEventListener('click', () => {
     const text = shareText();
     const fallback = () => { const ta = $('#share-fallback'); ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast('Copy your score from the box below'); };

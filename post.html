@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>closr. post maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap">
+<style>
+/* Instagram post maker: each round as a 4:5 "closest to #N wins" post, plus an answer post and a caption. */
+:root {
+  --bg: #f2f2f0; --surface: #fff; --ink: #121212; --muted: #62625f; --line: #e3e3df; --chip: #ececea; --accent: #c4452a; --accent-soft: #fbece8;
+  --display: "Nunito", ui-rounded, system-ui, sans-serif; --body: "Nunito Sans", system-ui, -apple-system, sans-serif;
+  --shadow: 0 1px 2px rgba(18, 18, 18, .05), 0 6px 20px -12px rgba(18, 18, 18, .18);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.45; }
+button, select, textarea { font: inherit; color: inherit; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 56px; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); flex-wrap: wrap; }
+h1 { margin: 0; font-family: var(--display); font-weight: 900; font-size: 30px; letter-spacing: -.02em; }
+h1 span { color: var(--accent); }
+h1 small { font-size: 18px; color: var(--muted); font-weight: 800; margin-left: 6px; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+select { border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 14px; font-weight: 700; }
+.switch { display: flex; gap: 4px; padding: 4px; background: var(--chip); border-radius: 999px; }
+.switch button { border: 0; background: transparent; cursor: pointer; font-family: var(--display); font-weight: 800; padding: 7px 16px; border-radius: 999px; color: var(--muted); }
+.switch button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.tip { margin: 0; color: var(--muted); font-size: 14px; max-width: 80ch; }
+#status { margin: 0; color: var(--muted); font-size: 14px; min-height: 1.4em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.post { background: var(--surface); border-radius: 22px; box-shadow: var(--shadow); padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.post h2 { margin: 0; font-family: var(--display); font-weight: 900; font-size: 17px; }
+.post h2 span { color: var(--muted); font-weight: 800; }
+.previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.previews figure { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.previews canvas { width: 100%; height: auto; border-radius: 10px; display: block; background: var(--chip); }
+.previews figcaption { font-size: 12px; font-weight: 700; color: var(--muted); text-align: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { border: 0; cursor: pointer; font-family: var(--display); font-weight: 900; font-size: 14px; padding: 10px 14px; border-radius: 999px; background: var(--accent); color: #fff; flex: 1 1 auto; }
+.btn.ghost { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+.btn:hover { filter: brightness(1.06); }
+textarea { width: 100%; min-height: 104px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); padding: 10px; font-size: 13px; resize: vertical; }
+.toast { position: fixed; left: 50%; bottom: 18px; transform: translate(-50%, 8px); background: var(--ink); color: #fff; font-weight: 700; font-size: 14px; padding: 10px 16px; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>closr<span>.</span> <small>post maker</small></h1>
+    <div class="controls">
+      <label for="day" class="tip">Day</label>
+      <select id="day"></select>
+      <div class="switch" role="group" aria-label="League">
+        <button type="button" data-lg="nfl" aria-pressed="true">NFL</button>
+        <button type="button" data-lg="nba" aria-pressed="false">NBA</button>
+      </div>
+    </div>
+  </header>
+  <p class="tip">Post a round as a "closest wins" question, then post its answer the next day. Pick one or two rounds a day so you don't give away the whole set. Images are 1080×1350, Instagram's tallest feed size.</p>
+  <p id="status" role="status">Loading rounds…</p>
+  <div class="grid" id="grid"></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(function () {
+  const SITE = 'advaymandalia422.github.io/closr';
+  const D = 'Nunito, system-ui, sans-serif';
+  const $ = (s) => document.querySelector(s);
+  let index = [], day = null, lg = 'nfl', rounds = [];
+
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const label = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); };
+  const ordinal = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+  const fmt = (r, v) => r.f === 'dec1' ? v.toFixed(1) : Number.isInteger(v) ? v.toLocaleString('en-US') : v.toFixed(1);
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2000); }
+
+  function ranks(pool) {
+    const n = pool.length, start = [], end = [];
+    for (let i = 0; i < n; i++) start[i] = i > 0 && pool[i][2] === pool[i - 1][2] ? start[i - 1] : i + 1;
+    for (let i = n - 1; i >= 0; i--) end[i] = i < n - 1 && pool[i][2] === pool[i + 1][2] ? end[i + 1] : i + 1;
+    return { start, end };
+  }
+  function fitText(ctx, text, max) {
+    if (ctx.measureText(text).width <= max) return text;
+    while (text.length > 1 && ctx.measureText(text + '…').width > max) text = text.slice(0, -1);
+    return text + '…';
+  }
+  function fillRound(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+  function wordmark(ctx, cx, y, size, color) {
+    ctx.font = `900 ${size}px ${D}`; ctx.textAlign = 'center'; ctx.fillStyle = color;
+    const w = ctx.measureText('closr').width;
+    ctx.fillText('closr', cx - size * .14, y);
+    ctx.fillStyle = color === '#ffffff' ? '#ffffff' : '#c4452a';
+    ctx.beginPath(); ctx.arc(cx - size * .14 + w / 2 + size * .2, y - size * .12, size * .13, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Question post: rust background, the target rank huge, stat and season below.
+  function drawQuestion(r) {
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1350;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#c4452a'; ctx.fillRect(0, 0, 1080, 1350);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#ffffff';
+    ctx.font = `900 40px ${D}`; ctx.fillText(`${lg.toUpperCase()} · CLOSEST WINS`, 540, 130);
+    ctx.font = `800 64px ${D}`; ctx.fillText('Name the player closest to', 540, 300);
+    ctx.font = `900 380px ${D}`; ctx.fillText(`#${r.target}`, 540, 660);
+    ctx.font = `900 76px ${D}`; ctx.fillText(fitText(ctx, `in ${r.t.toLowerCase()}`, 960), 540, 790);
+    ctx.font = `800 46px ${D}`; const sw = ctx.measureText(r.s).width + 64;
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; fillRound(ctx, 540 - sw / 2, 830, sw, 76, 38);
+    ctx.fillStyle = '#ffffff'; ctx.fillText(r.s, 540, 884);
+    ctx.font = `800 46px ${D}`; ctx.fillText('Comment your pick. Answer tomorrow.', 540, 1060);
+    wordmark(ctx, 540, 1215, 84, '#ffffff');
+    ctx.font = `700 34px ${D}`; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillText(SITE, 540, 1280);
+    return c;
+  }
+
+  // Answer post: off-white, the ranks around the target with the target row highlighted.
+  function drawAnswer(r) {
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1350;
+    const ctx = c.getContext('2d'), rk = ranks(r.pool), t = r.target;
+    ctx.fillStyle = '#f2f2f0'; ctx.fillRect(0, 0, 1080, 1350);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#c4452a'; ctx.font = `900 40px ${D}`;
+    ctx.fillText(`${lg.toUpperCase()} · ANSWER`, 540, 120);
+    ctx.fillStyle = '#121212'; ctx.font = `900 96px ${D}`; ctx.fillText(`#${t}`, 540, 225);
+    ctx.font = `800 44px ${D}`; ctx.fillStyle = '#62625f';
+    ctx.fillText(fitText(ctx, `${r.t} · ${r.s}`, 960), 540, 290);
+    const rows = [];
+    r.pool.forEach((p, i) => { if (rk.end[i] >= t - 3 && rk.start[i] <= t + 3) rows.push(i); });
+    const shown = rows.slice(0, 9), top = 350, h = Math.min(92, Math.floor(820 / Math.max(shown.length, 7)) - 10);  // rows end above the footer at ~1170
+    shown.forEach((i, k) => {
+      const y = top + k * (h + 10), hit = rk.start[i] <= t && t <= rk.end[i];
+      ctx.fillStyle = hit ? '#c4452a' : '#ffffff'; fillRound(ctx, 70, y, 940, h, 28);
+      ctx.fillStyle = hit ? '#ffffff' : '#62625f'; ctx.textAlign = 'left'; ctx.font = `900 40px ${D}`;
+      ctx.fillText((rk.start[i] !== rk.end[i] ? 'T-' : '#') + rk.start[i], 100, y + h / 2 + 14);
+      ctx.fillStyle = hit ? '#ffffff' : '#121212'; ctx.font = `900 42px ${D}`;
+      ctx.fillText(fitText(ctx, r.pool[i][0], 560), 250, y + h / 2 + 15);
+      ctx.textAlign = 'right'; ctx.font = `900 40px ${D}`;
+      ctx.fillText(`${fmt(r, r.pool[i][2])} ${r.u}`, 980, y + h / 2 + 14);
+    });
+    ctx.textAlign = 'center'; ctx.fillStyle = '#121212'; ctx.font = `800 44px ${D}`;
+    ctx.fillText('Play six rounds a day, free', 540, 1205);
+    ctx.fillStyle = '#c4452a'; ctx.font = `800 38px ${D}`; ctx.fillText(SITE, 540, 1265);
+    return c;
+  }
+
+  function caption(r) {
+    const tag = lg === 'nfl' ? '#NFL #nfltrivia #football' : '#NBA #nbatrivia #basketball';
+    return `Name the player closest to ${ordinal(r.target)} in ${r.t.toLowerCase()} (${r.s}). Closest wins.\n\n` +
+      `Comment your pick. Answer drops tomorrow.\n\nPlay six rounds a day, free: ${SITE}\n\n${tag} #closr #sportstrivia`;
+  }
+
+  function download(canvas, name) {
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast('Image saved');
+    }, 'image/png');
+  }
+
+  function render() {
+    const grid = $('#grid');
+    grid.innerHTML = '';
+    rounds.forEach((r, i) => {
+      const q = drawQuestion(r), a = drawAnswer(r), card = document.createElement('article');
+      card.className = 'post';
+      card.innerHTML = `<h2>Round ${i + 1}: #${r.target} ${r.t} <span>· ${r.s}</span></h2>
+        <div class="previews"><figure><canvas></canvas><figcaption>Question</figcaption></figure><figure><canvas></canvas><figcaption>Answer (post next day)</figcaption></figure></div>
+        <div class="row"><button type="button" class="btn" data-a="q">Save question</button><button type="button" class="btn ghost" data-a="a">Save answer</button></div>
+        <textarea readonly aria-label="Caption for round ${i + 1}"></textarea>
+        <div class="row"><button type="button" class="btn ghost" data-a="c">Copy caption</button></div>`;
+      const [cq, ca] = card.querySelectorAll('canvas');
+      [[cq, q], [ca, a]].forEach(([dst, src]) => { dst.width = 540; dst.height = 675; dst.getContext('2d').drawImage(src, 0, 0, 540, 675); });
+      const ta = card.querySelector('textarea'); ta.value = caption(r);
+      card.querySelector('[data-a="q"]').addEventListener('click', () => download(q, `closr-${lg}-${day}-r${i + 1}-question.png`));
+      card.querySelector('[data-a="a"]').addEventListener('click', () => download(a, `closr-${lg}-${day}-r${i + 1}-answer.png`));
+      card.querySelector('[data-a="c"]').addEventListener('click', () => {
+        try { navigator.clipboard.writeText(ta.value).then(() => toast('Caption copied'), () => { ta.select(); toast('Copy the caption from the box'); }); }
+        catch (e) { ta.select(); }
+      });
+      grid.appendChild(card);
+    });
+  }
+
+  async function loadDay(d) {
+    day = d;
+    $('#status').textContent = 'Loading rounds…';
+    try {
+      const res = await fetch(`archive/${d}.json`, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      rounds = data[lg] || [];
+      $('#status').textContent = `${label(d)} · ${lg.toUpperCase()} · ${rounds.length} rounds`;
+      render();
+    } catch (e) {
+      $('#status').textContent = 'Couldn’t load that day’s rounds. Check your connection and try again.';
+    }
+  }
+
+  async function init() {
+    try { await Promise.all(['900 100px Nunito', '800 40px Nunito', '700 30px Nunito'].map((f) => document.fonts.load(f))); } catch (e) {}
+    try {
+      const res = await fetch('archive/index.json', { cache: 'no-cache' });
+      index = (await res.json()).map((x) => x.date);
+    } catch (e) { $('#status').textContent = 'Couldn’t load the list of days.'; return; }
+    const today = iso(new Date());
+    const sel = $('#day');
+    sel.innerHTML = index.map((d) => `<option value="${d}">${label(d)}${d === today ? ' (today)' : ''}</option>`).join('');
+    sel.value = index.includes(today) ? today : index[0];
+    sel.addEventListener('change', () => loadDay(sel.value));
+    document.querySelectorAll('.switch button').forEach((b) => b.addEventListener('click', () => {
+      lg = b.dataset.lg;
+      document.querySelectorAll('.switch button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      loadDay(day);
+    }));
+    loadDay(sel.value);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
