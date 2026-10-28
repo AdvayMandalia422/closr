@@ -549,12 +549,11 @@ body[data-sport="nba"] .court-bg { display: block; }
     $('#target').innerHTML = `${r.target}<sup>${ordinal(r.target).slice(String(r.target).length)}</sup>`;
     $('#target').setAttribute('aria-label', `Target rank ${r.target}`);
     $('#ask').innerHTML = `Name the player closest to <b>${ordinal(r.target)}</b>. Closest wins.`;
-    $('#note').textContent = r.n;
     $('#range').innerHTML = rangeHint(r, prep[game.at]);
+    $('#note').textContent = r.n;
     if (answered) renderReveal(r, prep[game.at], game.picks[game.at]);
   }
 
-  function renderReveal(r, pr, pick) {
   // "Hint: #24 has 400–500 yds": the target's value rounded into a band one step wide.
   function rangeHint(r, pr) {
     const i = r.pool.findIndex((_, k) => offBy(pr, k, r.target) === 0);
@@ -567,6 +566,7 @@ body[data-sport="nba"] .court-bg { display: block; }
     return `Hint: #${r.target} has <b>${n(lo)}–${n(lo + step)} ${esc(r.u)}</b>`;
   }
 
+  function renderReveal(r, pr, pick) {
     const t = r.target;
     const p = $('#r-pts');
     p.className = 'pts ' + band(pick.pts);
