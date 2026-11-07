@@ -141,7 +141,7 @@ button, input { font: inherit; color: inherit; }
 .ladder li.gap { display: block; min-height: 0; background: transparent; color: var(--muted); text-align: center; font-size: 14px; line-height: 1; padding: 2px 0; }
 
 /* Final */
-.summary { display: grid; gap: 18px; grid-template-areas: "head" "recap" "actions" "stats" "next"; }
+.summary { display: grid; gap: 18px; grid-template-areas: "head" "h2h" "chal" "recap" "actions" "stats" "next"; }
 .final-head { grid-area: head; display: flex; flex-direction: column; gap: 4px; padding-bottom: 14px; border-bottom: 2px solid var(--rule); }
 .final-label { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
 .final { display: flex; align-items: baseline; gap: 8px; }
@@ -194,6 +194,31 @@ body[data-sport="nba"] .court-bg { display: block; }
   .court-h { display: none; }
   .court-v { display: block; }
 }
+
+/* 1v1 challenges */
+.vs-bar { display: flex; align-items: center; justify-content: center; text-align: center; gap: 10px; background: var(--ink); color: #fff; border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 14px; box-shadow: var(--shadow); }
+.vs-bar b { font-weight: 900; }
+.vs-line { margin: 0; font-size: 15px; color: var(--muted); background: var(--accent-soft); border-radius: 14px; padding: 8px 12px; }
+.vs-line b { color: var(--ink); }
+.ladder li.is-opp { box-shadow: inset 0 0 0 2px var(--accent); }
+.ladder li.is-you.is-opp { box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 4px var(--accent); }
+.opp-tag { display: inline-block; margin-left: 8px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 999px; vertical-align: 2px; line-height: 1.4; white-space: nowrap; }
+.h2h { grid-area: h2h; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 6px 12px; background: var(--bg); border-radius: 18px; padding: 14px 16px; }
+.h2h-side { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.h2h-sc { font-family: var(--display); font-weight: 900; font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums; }
+.h2h-nm { max-width: 100%; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h2h-side.win .h2h-sc { color: var(--accent); }
+.h2h-vs { font-family: var(--display); font-weight: 900; color: var(--muted); }
+.h2h-msg { grid-column: 1 / -1; margin: 0; text-align: center; font-family: var(--display); font-weight: 900; font-size: 18px; }
+.challenge { grid-area: chal; display: flex; flex-direction: column; gap: 8px; background: var(--accent-soft); border-radius: 18px; padding: 14px 16px; }
+.ch-title { margin: 0; font-family: var(--display); font-weight: 900; font-size: 18px; }
+.ch-sub { margin: -4px 0 2px; font-size: 13.5px; color: var(--muted); }
+.ch-row { display: flex; gap: 8px; flex-wrap: wrap; }
+#ch-name { flex: 1 1 150px; min-width: 0; border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px; padding: 12px 16px; font-size: 16px; font-weight: 700; outline: none; }
+#ch-name:focus { border-color: var(--ink); box-shadow: 0 0 0 4px rgba(18, 18, 18, .08); }
+.ch-row .btn { flex: 1 1 170px; }
+#ch-msg { min-height: 0; }
+.recap .p small { display: block; font-family: var(--body); font-size: 11px; font-weight: 800; color: var(--accent); text-align: right; }
 
 /* Archive */
 .top-actions { display: flex; align-items: center; gap: 8px; }
@@ -280,7 +305,7 @@ body[data-sport="nba"] .court-bg { display: block; }
   .field { flex-direction: row; }
   .combo { flex: 1; }
   .summary { padding: 32px; column-gap: 40px; row-gap: 20px; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
-    grid-template-areas: "head recap" "actions recap" "stats recap" "next recap"; align-items: start; }
+    grid-template-areas: "head recap" "h2h recap" "chal recap" "actions recap" "stats recap" "next recap"; align-items: start; }
   .final strong { font-size: 128px; }
 }
 @media (hover: hover) {
@@ -320,6 +345,8 @@ body[data-sport="nba"] .court-bg { display: block; }
     <span id="mode-label">Archive</span>
     <button type="button" class="link-btn" id="mode-exit">Back to today</button>
   </div>
+
+  <div class="vs-bar" id="vs-bar" hidden role="status"></div>
 
   <section class="archive panel" id="archive" hidden aria-labelledby="arch-h">
     <div class="arch-head">
@@ -381,6 +408,7 @@ body[data-sport="nba"] .court-bg { display: block; }
       <section class="reveal panel" id="reveal" hidden aria-live="polite">
         <div class="reveal-head"><span class="pts" id="r-pts">+87</span><span class="verdict" id="r-verdict">So close.</span></div>
         <p class="detail" id="r-detail"></p>
+        <p class="vs-line" id="r-vs" hidden></p>
         <ol class="ladder" id="ladder"></ol>
         <button type="button" class="btn" id="next">Next round</button>
       </section>
@@ -392,6 +420,7 @@ body[data-sport="nba"] .court-bg { display: block; }
           <li>Dead on scores <b>100</b>. Points ease off the further you land: 2 spots off is 85, 5 off is 66, 10 off is 43.</li>
           <li>Six rounds per league. A new set drops every day at midnight.</li>
           <li>Missed a day? Play past sets from the <b>Archive</b>.</li>
+          <li>Finished a set? <b>Challenge a friend</b> to the same six rounds and see who got closer.</li>
         </ul>
       </details>
     </div>
@@ -401,6 +430,16 @@ body[data-sport="nba"] .court-bg { display: block; }
         <p class="final-label" id="s-league">NFL · No. 1</p>
         <div class="final"><strong id="s-total">0</strong><span id="s-max">/ 600</span></div>
         <p class="final-title" id="s-title">Locked in.</p>
+      </div>
+      <div class="h2h" id="h2h" hidden></div>
+      <div class="challenge" id="challenge">
+        <p class="ch-title" id="ch-title">Challenge a friend</p>
+        <p class="ch-sub" id="ch-sub">They play this same set, then see who got closer.</p>
+        <div class="ch-row">
+          <input id="ch-name" type="text" maxlength="20" placeholder="Your name" autocomplete="nickname" aria-label="Your name">
+          <button type="button" class="btn" id="ch-send">Send challenge</button>
+        </div>
+        <p class="hint" id="ch-msg" role="status"></p>
       </div>
       <ol class="recap" id="recap"></ol>
       <div class="actions">
@@ -453,6 +492,8 @@ body[data-sport="nba"] .court-bg { display: block; }
   let sport = 'nfl', day = 1, key = '', rounds = [], game, prep = [], chosen = null, matches = [], active = -1;
   // Archive: mode is 'daily' or 'archive'; pkey is the date being played.
   let mode = 'daily', pkey = '', archiveIndex = null;
+  // 1v1 challenge for the set being played: { n, picks: [{ i, d, pts } | null], total }.
+  let opp = null;
   const archiveDays = {};
 
   function todaysRounds() {
@@ -490,6 +531,7 @@ body[data-sport="nba"] .court-bg { display: block; }
     const sig = rounds.map((r) => r.id).join('|');
     const saved = store.get(stateKey(), null);
     game = saved && saved.sig === sig ? saved : { sig, picks: [], at: 0, recorded: false };
+    opp = loadOpp();
     $('#app').dataset.sport = sport;
     document.body.dataset.sport = sport;
     ['nfl', 'nba'].forEach((s) => $('#btn-' + s).setAttribute('aria-pressed', String(s === sport)));
@@ -526,6 +568,7 @@ body[data-sport="nba"] .court-bg { display: block; }
     $('#hud-label').innerHTML = `Round <b>${Math.min(game.at + 1, rounds.length)}</b> of ${rounds.length}`;
     $('#score').textContent = total();
     renderSide();
+    renderVs();
 
     $('#stage').classList.toggle('done', done);
     $('#board').hidden = done;
@@ -584,6 +627,10 @@ body[data-sport="nba"] .court-bg { display: block; }
     const show = new Set();
     r.pool.forEach((_, i) => { if (pr.end[i] >= t - 3 && pr.start[i] <= t + 3) show.add(i); });
     show.add(pick.i);
+    const op = opp && opp.picks[game.at];
+    if (op) show.add(op.i);
+    $('#r-vs').hidden = !op;
+    if (op) $('#r-vs').innerHTML = `${esc(opp.n)} picked <b>${esc(r.pool[op.i][0])}</b> · ${rankLabel(pr, op.i)} · <b>+${op.pts}</b>`;
     const idx = [...show].sort((a, b) => a - b);
     const ol = $('#ladder');
     ol.innerHTML = '';
@@ -592,8 +639,8 @@ body[data-sport="nba"] .court-bg { display: block; }
         const g = document.createElement('li'); g.className = 'gap'; g.setAttribute('aria-hidden', 'true'); g.textContent = '⋯'; ol.appendChild(g);
       }
       const li = document.createElement('li');
-      li.className = (offBy(pr, i, t) === 0 ? 'is-target' : '') + (i === pick.i ? ' is-you' : '');
-      li.innerHTML = `<span class="rk">${rankLabel(pr, i)}</span><span class="who"><span class="nm">${esc(r.pool[i][0])}</span><span class="sb">${esc(r.pool[i][1])}</span></span>` +
+      li.className = (offBy(pr, i, t) === 0 ? 'is-target' : '') + (i === pick.i ? ' is-you' : '') + (op && i === op.i ? ' is-opp' : '');
+      li.innerHTML = `<span class="rk">${rankLabel(pr, i)}</span><span class="who"><span class="nm">${esc(r.pool[i][0])}${op && i === op.i ? `<span class="opp-tag">${esc(opp.n)}</span>` : ''}</span><span class="sb">${esc(r.pool[i][1])}</span></span>` +
         `<span class="vl">${fmt(r, r.pool[i][2])}<small>${esc(r.u)}</small></span>`;
       ol.appendChild(li);
     });
@@ -611,15 +658,99 @@ body[data-sport="nba"] .court-bg { display: block; }
     rounds.forEach((r, i) => {
       const pk = game.picks[i];
       const li = document.createElement('li');
-      li.innerHTML = `<i class="dot ${band(pk.pts)}"></i><span class="what"><b>${esc(r.t)}</b> <span>· ${esc(r.s)} · #${r.target} → ${esc(r.pool[pk.i][0])} (${rankLabel(prep[i], pk.i)})</span></span><span class="p">+${pk.pts}</span>`;
+      const op = opp && opp.picks[i];
+      li.innerHTML = `<i class="dot ${band(pk.pts)}"></i><span class="what"><b>${esc(r.t)}</b> <span>· ${esc(r.s)} · #${r.target} → ${esc(r.pool[pk.i][0])} (${rankLabel(prep[i], pk.i)})</span></span>` +
+        `<span class="p">+${pk.pts}${op ? `<small>${esc(opp.n)} +${op.pts}</small>` : ''}</span>`;
       ol.appendChild(li);
     });
+    renderH2H(tot);
+    renderChallengeBox();
     const s = stats();
     $('#st-played').textContent = s.played;
     $('#st-avg').textContent = s.played ? Math.round(s.total / s.played) : 0;
     $('#st-best').textContent = s.best;
     $('#st-streak').textContent = s.last >= day - 1 ? s.streak : 0;
     tick();
+  }
+
+  // ---------- 1v1 challenges
+  // A challenge link carries the date, league, sender's name and their picks (indexes into each
+  // round's player list), base64-encoded so the picks aren't readable at a glance.
+  const chKey = (lg, d) => `closr:v1:challenge:${lg}:${d}`;
+  const encodeChallenge = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const decodeChallenge = (s) => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))));
+  function loadOpp() {
+    const o = store.get(chKey(sport, pkey), null);
+    if (!o || !Array.isArray(o.p) || !rounds.length) return null;
+    const picks = rounds.map((r, k) => {
+      const i = o.p[k];
+      if (!Number.isInteger(i) || i < 0 || i >= r.pool.length) return null;
+      const d = offBy(prep[k], i, r.target);
+      return { i, d, pts: points(d) };
+    });
+    return { n: o.n, picks, total: picks.reduce((a, p) => a + (p ? p.pts : 0), 0) };
+  }
+  function renderVs() {
+    const bar = $('#vs-bar');
+    bar.hidden = !opp || !$('#archive').hidden;
+    if (!opp) return;
+    bar.innerHTML = game.at >= rounds.length
+      ? `<span>You <b>${total()}</b> · ${esc(opp.n)} <b>${opp.total}</b></span>`
+      : `<span><b>${esc(opp.n)}</b> challenged you and scored <b>${opp.total}</b>. Beat it.</span>`;
+  }
+  function renderH2H(me) {
+    const h = $('#h2h');
+    h.hidden = !opp;
+    if (!opp) return;
+    const them = opp.total, diff = Math.abs(me - them);
+    const msg = me > them ? `You win by ${diff}.` : them > me ? `${esc(opp.n)} wins by ${diff}.` : 'Dead heat.';
+    h.innerHTML = `<div class="h2h-side${me > them ? ' win' : ''}"><span class="h2h-sc">${me}</span><span class="h2h-nm">You</span></div><span class="h2h-vs">vs</span>` +
+      `<div class="h2h-side${them > me ? ' win' : ''}"><span class="h2h-sc">${them}</span><span class="h2h-nm">${esc(opp.n)}</span></div><p class="h2h-msg">${msg}</p>`;
+  }
+  function renderChallengeBox() {
+    $('#ch-title').textContent = opp ? `Send your score to ${opp.n}` : 'Challenge a friend';
+    $('#ch-sub').textContent = opp ? `${opp.n} sees how you did, round by round.` : 'They play this same set, then see who got closer.';
+    $('#ch-send').textContent = opp ? `Send to ${opp.n}` : 'Send challenge';
+    $('#ch-name').value = store.get('closr:v1:name', '');
+    $('#ch-msg').textContent = '';
+  }
+  function sendChallenge() {
+    const name = $('#ch-name').value.trim().replace(/\s+/g, ' ').slice(0, 20);
+    if (!name) { $('#ch-msg').textContent = 'Add your name so your friend knows who sent it.'; $('#ch-name').focus(); return; }
+    store.set('closr:v1:name', name);
+    const link = location.origin + location.pathname + '?c=' + encodeChallenge({ v: 1, d: pkey, l: sport, n: name, p: game.picks.map((p) => p.i) });
+    const when = dateLabel(pkey, { month: 'short', day: 'numeric' }), lg = sport.toUpperCase();
+    const text = opp
+      ? `closr ${lg}, ${when}: ${name} ${total()}, ${opp.n} ${opp.total}. See every round: ${link}`
+      : `I scored ${total()} on closr ${lg} (${when}). Think you can get closer? ${link}`;
+    const copy = () => {
+      const fallback = () => { const ta = $('#share-fallback'); ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast('Copy the challenge from the box below'); };
+      try { navigator.clipboard.writeText(text).then(() => toast(opp ? `Link copied. Send it to ${opp.n}.` : 'Challenge copied. Send it to a friend.'), fallback); } catch (e) { fallback(); }
+    };
+    // Phones get the share sheet (Messages, WhatsApp, etc.); computers copy the message and link.
+    if (matchMedia('(pointer: coarse)').matches && navigator.share) navigator.share({ text }).catch((e) => { if (e.name !== 'AbortError') copy(); });
+    else copy();
+  }
+  $('#ch-send').addEventListener('click', sendChallenge);
+  $('#ch-name').addEventListener('input', () => { $('#ch-msg').textContent = ''; });
+
+  // Opening a challenge link: remember the sender's picks for that set, then go to it.
+  async function openChallengeLink() {
+    const raw = new URLSearchParams(location.search).get('c');
+    if (!raw) return false;
+    history.replaceState(null, '', location.pathname + location.hash);
+    let c = null;
+    try { c = decodeChallenge(raw); } catch (e) {}
+    const ok = c && /^\d{4}-\d{2}-\d{2}$/.test(c.d) && (c.l === 'nfl' || c.l === 'nba') && typeof c.n === 'string' && c.n.trim() &&
+      Array.isArray(c.p) && c.p.length >= 1 && c.p.length <= 6 && c.p.every((i) => Number.isInteger(i) && i >= 0 && i < 1000);
+    if (!ok) { toast('That challenge link didn’t work. Ask your friend to send it again.'); return false; }
+    store.set(chKey(c.l, c.d), { n: c.n.trim().slice(0, 20), p: c.p });
+    sport = c.l;
+    if (c.d === dateKey()) { mode = 'daily'; return false; }
+    if (DATA.days && DATA.days[c.d]) archiveDays[c.d] = DATA.days[c.d];
+    if (await playArchive(c.d, c.l)) return true;
+    toast('Couldn’t load that challenge. Check your connection and try again.');
+    return false;
   }
 
   function renderSide() {
@@ -894,7 +1025,7 @@ body[data-sport="nba"] .court-bg { display: block; }
     $('#archive').hidden = !on;
     $('#stage').hidden = on;
     $('#arch-open').setAttribute('aria-pressed', String(on));
-    if (on) $('#mode-bar').hidden = true;
+    if (on) { $('#mode-bar').hidden = true; $('#vs-bar').hidden = true; }
   }
   async function openArchive() {
     showArchive(true);
@@ -942,13 +1073,14 @@ body[data-sport="nba"] .court-bg { display: block; }
         archiveDays[date] = await res.json();
       } catch (e) {
         $('#arch-msg').textContent = 'Couldn’t load that set. Check your connection and try again.';
-        return;
+        return false;
       }
     }
     mode = 'archive'; pkey = date; sport = lg;
     showArchive(false);
     load();
     window.scrollTo({ top: 0 });
+    return true;
   }
   function exitArchive() {
     mode = 'daily';
@@ -988,7 +1120,7 @@ body[data-sport="nba"] .court-bg { display: block; }
   buildCourt();
   sport = store.get('closr:v1:sport', 'nfl') === 'nba' ? 'nba' : 'nfl';
   if (!store.get('closr:v1:stats:nfl', null) && !store.get('closr:v1:stats:nba', null)) $('#howto').open = true;
-  load();
+  openChallengeLink().then((handled) => { if (!handled) load(); });
 })();
 </script>
 </body>

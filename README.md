@@ -75,6 +75,15 @@ Stats are defined in `NFL_STATS` and `NBA_STATS` in [`scripts/build.py`](scripts
 - **NFL career rounds:** use any stat that has a single `col`.
 - **NBA all-time rounds:** map to Basketball Reference leader pages through `NBA_CAREER`.
 
+## 1v1 challenges
+
+After finishing a set, a player can send a challenge link. The link carries the date, league, sender's name and their picks, encoded in the `?c=` query (base64 JSON with `d`, `l`, `n`, `p`, where `p` holds indexes into each round's player list). There's no server involved.
+
+- The friend plays the same six rounds. A bar shows the sender's score to beat, each round shows the sender's pick, and the final screen shows a head-to-head score.
+- The friend can send their score back the same way. A player who has already finished that set sees the head-to-head right away.
+- A challenge for today's set counts as the friend's daily. An older day plays like an archive set and doesn't change stats.
+- Opponent picks are stored per set in local storage (`closr:v1:challenge:<league>:<date>`).
+
 ## Player counts
 
 The game sends anonymous daily counts to [Abacus](https://abacus.jasoncameron.dev), a free public counter that needs no account. Counts are keyed by date (namespace `closr-advaymandalia422`):
