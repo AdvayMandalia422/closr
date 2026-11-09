@@ -2,7 +2,14 @@ name: Refresh closr rounds
 
 on:
   schedule:
-    - cron: '17 9 * * *' # 09:17 UTC daily, after the previous night's US games are final
+    # Tomorrow's set is built by the first run after 18:00 UTC (1 PM ET), once nflverse has
+    # published last night's NFL stats (its updates follow Thursday, Sunday and Monday games).
+    # Three tries, because GitHub often starts scheduled runs hours late.
+    - cron: '23 18 * * *'
+    - cron: '53 20 * * *'
+    - cron: '23 23 * * *'
+    # Safety net: builds today's set if every evening run failed.
+    - cron: '41 3 * * *'
   workflow_dispatch:
   push:
     branches: [main]

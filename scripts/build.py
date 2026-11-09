@@ -8,10 +8,14 @@ rank; players name someone they think sits closest to that rank.
   python scripts/build.py --rebuild-static    # refetch past seasons and career lists now
   python scripts/build.py --today 2026-11-01  # build as if it were another day (testing)
   python scripts/build.py --backfill 7        # also fill in missing rounds for the past 7 days
+  python scripts/build.py --remake 2026-11-09 # rebuild a day with different questions (players can replay it)
 
 data/static.json holds past-season lists, NBA all-time lists and NFL career totals
 from 1999 up to the last completed season. It's rebuilt automatically every 30 days.
-data/schedule.json holds the rounds for each day. Days already scheduled never change.
+data/schedule.json holds the rounds for each day. Days already scheduled never change unless
+remade with --remake, which gives the day new questions and new round ids so players replay it.
+Tomorrow's set is built by the first run after 18:00 UTC, once nflverse has published the previous
+night's NFL stats (Sunday games reach Tuesday's set, Monday night Wednesday's, Thursday night Saturday's).
 archive/<date>.json keeps every finished day's rounds for the in-game archive, listed in
 archive/index.json. Archive files are kept after the schedule drops old days.
 """
@@ -52,7 +56,7 @@ POOL_SEASON = 120          # players kept per season list (guesses outside score
 POOL_CAREER = 200
 STATIC_MAX_AGE_DAYS = 30
 SCHEDULE_KEEP_DAYS = 21
-HORIZON_DAYS = 2           # schedule this many days past today (UTC)
+NEXT_DAY_AFTER_UTC_HOUR = 18  # build tomorrow's set only after this hour (UTC), when last night's stats are in
 NFL_MIN_GAMES = 3          # current season rounds start once teams have played this many games
 NBA_MIN_GAMES = 12
 FIRST_NFL_CAREER_SEASON = 1999
@@ -177,15 +181,16 @@ def nfl_rows(season, max_age):
 
 def nfl_progress(season, max_age):
     games = csv.DictReader(io.StringIO(fetch(NFL_GAMES, 'nfl_games.csv', max_age)))
-    played, week = {}, 0
+    played, week, last_day = {}, 0, None
     for g in games:
         if g['season'] != str(season) or g['game_type'] != 'REG' or g['home_score'] == '':
             continue
         week = max(week, int(g['week']))
+        last_day = max(last_day or g['gameday'], g['gameday'])
         for t in (g['home_team'], g['away_team']):
             played[t] = played.get(t, 0) + 1
     gp = statistics.median(played.values()) if played else 0
-    return week, gp, week >= 18 and gp >= 17
+    return week, gp, week >= 18 and gp >= 17, dt.date.fromisoformat(last_day) if last_day else None
 
 
 def nfl_season_pools(rows):
@@ -311,11 +316,12 @@ def scopes_for(today, static):
     cur_rows, week = None, 0
     if cur_season:
         try:
-            week, gp, complete = nfl_progress(cur_season, 6)
+            week, gp, complete, last_day = nfl_progress(cur_season, 6)
             if gp >= NFL_MIN_GAMES:
                 cur_rows = nfl_rows(cur_season, 6)
                 label = f'{cur_season} season' if complete else f'{cur_season} season so far'
-                note = f'{cur_season} regular season.' if complete else f'{cur_season} regular season through Week {week}.'
+                through_day = f'{last_day:%b} {last_day.day}' if last_day else f'Week {week}'
+                note = f'{cur_season} regular season.' if complete else f'{cur_season} regular season, games through {through_day}.'
                 nfl['cur'] = {'label': label, 'note': note, 'pools': nfl_season_pools(cur_rows), 'role': 'cur'}
             log('nfl', cur_season, 'week', week, 'ready' if 'cur' in nfl else 'not enough games yet')
         except Exception as e:  # network or format problems: skip current-season rounds today
@@ -329,7 +335,7 @@ def scopes_for(today, static):
             b = base.get(r['player_id'])
             v = [x + num(r[c]) for x, c in zip(b[4] if b else [0.0] * len(cols), cols)]
             career[r['player_id']] = (r['player_display_name'], r['position'], r['recent_team'], v)
-        through = f' Through Week {week} of {cur_season}.'
+        through = f' Through games on {last_day:%b} {last_day.day}, {cur_season}.' if last_day else f' Through Week {week} of {cur_season}.'
     else:
         active_season = static['nfl']['career_through']
         for pid, (name, pos, team, last, v) in base.items():
@@ -438,15 +444,18 @@ def plan(scopes, rng):
     return keys
 
 
-def rounds_for(lg, date, scopes, schedule):
+def rounds_for(lg, date, scopes, schedule, avoid=(), tag=''):
+    """Six rounds for one league and day. A remake passes the old set's (scope, stat) pairs as `avoid` and an
+    id `tag` such as '-r2', so the new set asks different questions and players' saved games reset."""
     key = date.isoformat()
-    rng = random.Random(f'closr:{lg}:{key}')
+    rng = random.Random(f'closr:{lg}:{key}{tag}')
     recent = {(r['sc'], r['k']) for d in sorted(schedule) if d < key for r in schedule[d].get(lg, [])[-ROUNDS:]}
     used, rounds = set(), []
     for sc in plan(scopes, rng):
         kinds = [k for k in scopes[sc]['pools'] if k not in used]
         rng.shuffle(kinds)
-        kinds.sort(key=lambda k: (sc, k) in recent)
+        # Remakes: never repeat a stat in the same season or list, and prefer stats the old set didn't use.
+        kinds.sort(key=lambda k: ((sc, k) in avoid, k in {kk for _, kk in avoid}, (sc, k) in recent))
         for k in kinds:
             r = make_round(lg, key, sc, scopes[sc], k, rng)
             if r:
@@ -455,6 +464,8 @@ def rounds_for(lg, date, scopes, schedule):
                 break
     if len(rounds) < ROUNDS:
         raise SystemExit(f'could only build {len(rounds)} rounds for {lg} {key}')
+    for r in rounds:
+        r['id'] += tag
     return rounds
 
 
@@ -467,7 +478,7 @@ def embed(schedule, today):
     INDEX.write_text(page[:a] + js + page[b:], encoding='utf-8')
 
 
-def write_archive(schedule, today):
+def write_archive(schedule, today, overwrite=()):
     """Save each finished (or current) day's rounds and rebuild the archive index.
 
     The page only lists dates before the player's local today, so writing today's
@@ -476,7 +487,7 @@ def write_archive(schedule, today):
     ARCHIVE_DIR.mkdir(exist_ok=True)
     for d, rounds in schedule.items():
         path = ARCHIVE_DIR / f'{d}.json'
-        if d <= today.isoformat() and all(lg in rounds for lg in LEAGUES) and not path.exists():
+        if d <= today.isoformat() and all(lg in rounds for lg in LEAGUES) and (d in overwrite or not path.exists()):
             path.write_text(json.dumps(rounds, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     index = []
     for path in sorted(ARCHIVE_DIR.glob('????-??-??.json'), reverse=True):
@@ -491,8 +502,12 @@ def main():
     ap.add_argument('--rebuild-static', action='store_true')
     ap.add_argument('--today', type=dt.date.fromisoformat)
     ap.add_argument('--backfill', type=int, default=1, metavar='DAYS', help='schedule missing days this far back (default 1)')
+    ap.add_argument('--remake', type=dt.date.fromisoformat, action='append', default=[], metavar='DATE',
+                    help='rebuild this day with different questions; players who already played it can replay')
     args = ap.parse_args()
-    today = args.today or dt.datetime.now(dt.timezone.utc).date()
+    now = dt.datetime.now(dt.timezone.utc)
+    today = args.today or now.date()
+    build_tomorrow = args.today is not None or now.hour >= NEXT_DAY_AFTER_UTC_HOUR
 
     static = json.loads(STATIC_FILE.read_text(encoding='utf-8')) if STATIC_FILE.exists() else None
     if args.rebuild_static or not static or (today - dt.date.fromisoformat(static['built'])).days >= STATIC_MAX_AGE_DAYS:
@@ -506,18 +521,31 @@ def main():
             log('static rebuild failed, keeping existing data:', e)
     schedule = json.loads(SCHEDULE_FILE.read_text(encoding='utf-8')) if SCHEDULE_FILE.exists() else {}
 
-    dates = [today + dt.timedelta(days=d) for d in range(-max(1, args.backfill), HORIZON_DAYS + 1)]
+    remade, avoid, tags = set(), {}, {}
+    for d in args.remake:
+        old = schedule.pop(d.isoformat(), {})
+        for lg in LEAGUES:
+            ids = [r['id'] for r in old.get(lg, [])]
+            m = re.search(r'-r(\d+)$', ids[0]) if ids else None
+            tags[(d.isoformat(), lg)] = f'-r{int(m.group(1)) + 1 if m else 2}'
+            avoid[(d.isoformat(), lg)] = {(r['sc'], r['k']) for r in old.get(lg, [])}
+        remade.add(d.isoformat())
+        log('remaking', d)
+
+    dates = [today + dt.timedelta(days=d) for d in range(-max(1, args.backfill), (1 if build_tomorrow else 0) + 1)]
+    dates += [d for d in args.remake if d not in dates]
     missing = [(d, lg) for d in dates for lg in LEAGUES if lg not in schedule.get(d.isoformat(), {})]
     if missing:
         scopes = scopes_for(today, static)
         for d, lg in missing:
-            schedule.setdefault(d.isoformat(), {})[lg] = rounds_for(lg, d, scopes[lg], schedule)
+            k = (d.isoformat(), lg)
+            schedule.setdefault(d.isoformat(), {})[lg] = rounds_for(lg, d, scopes[lg], schedule, avoid.get(k, ()), tags.get(k, ''))
             log(d, lg, ' | '.join(f"{r['t']} ({r['s']}) #{r['target']}" for r in schedule[d.isoformat()][lg]))
     cutoff = (today - dt.timedelta(days=SCHEDULE_KEEP_DAYS)).isoformat()
     schedule = {d: v for d, v in sorted(schedule.items()) if d >= cutoff}
     SCHEDULE_FILE.write_text(json.dumps(schedule, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     embed(schedule, today)
-    log('index.html updated for', today, '·', write_archive(schedule, today), 'days in archive')
+    log('index.html updated for', today, '·', write_archive(schedule, today, remade), 'days in archive')
 
 
 if __name__ == '__main__':

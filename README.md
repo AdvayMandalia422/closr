@@ -26,12 +26,12 @@ The whole game is a single page, [`index.html`](index.html), with no dependencie
 
 ## How the daily rounds are made
 
-A GitHub Action ([`.github/workflows/refresh.yml`](.github/workflows/refresh.yml)) runs every morning at 09:17 UTC. Each run:
+A GitHub Action ([`.github/workflows/refresh.yml`](.github/workflows/refresh.yml)) runs three times each evening (18:23, 20:53 and 23:23 UTC) plus a 03:41 UTC safety run. The times follow NFL games: nflverse publishes new stats the morning after Thursday, Sunday and Monday games, so the first run after 18:00 UTC builds tomorrow's set with last night's stats. Sunday's games reach Tuesday's set, Monday night's reach Wednesday's, Thursday night's reach Saturday's. Each run:
 
 1. Downloads current-season stats:
    - NFL player stats and game results from [nflverse](https://github.com/nflverse)
    - NBA totals and standings from [Basketball Reference](https://www.basketball-reference.com)
-2. Schedules six rounds per league for yesterday through two days ahead in [`data/schedule.json`](data/schedule.json). Days that already have rounds are never changed, so everyone gets the same set all day in every time zone.
+2. Schedules six rounds per league in [`data/schedule.json`](data/schedule.json): today if missing, and tomorrow once it's past 18:00 UTC. Days that already have rounds don't change, so everyone gets the same set all day. To redo a day with new questions, run `python3 scripts/build.py --remake <date>`. Remade rounds get new ids, so anyone who already played gets a fresh game, and their stats are updated rather than counted twice.
 3. Embeds yesterday's, today's and tomorrow's rounds into `index.html`.
 4. Saves each finished day to [`archive/`](archive/) (one JSON file per date, plus `archive/index.json`). The in-game Archive lists these so people can play past sets. Archive plays don't change stats or streaks.
 5. Commits and deploys to GitHub Pages.
